@@ -58,6 +58,20 @@ def start_server():
         save_key_to_file(public_key, f'{KEY_DIR}/public_key.pem')
 
 
+
+ALLOWED_CLIENTS_DIR = 'allowed_clients'
+os.makedirs(ALLOWED_CLIENTS_DIR, exist_ok=True)
+
+def is_client_allowed(pub_key_bytes):
+    for filename in os.listdir(ALLOWED_CLIENTS_DIR):
+        if filename.endswith('.pem'):
+            with open(os.path.join(ALLOWED_CLIENTS_DIR, filename), 'rb') as f:
+                if f.read() == pub_key_bytes:
+                    return True
+    return False
+
+
+
 def generate_dh_parameters():
     # Генерация параметров DH
     parameters = dh.generate_parameters(generator=2, key_size=2048, backend=default_backend())
@@ -152,6 +166,12 @@ def asymmetric_server():
         response = b"Hello from server!"
         encrypted_response = encrypt_message(shared_key, response)
         conn.send(encrypted_response)
+
+        client_pub_key = conn.recv(4096)  # Получаем ключ клиента
+        if not is_client_allowed(client_pub_key):
+            conn.send(b'ACCESS_DENIED')
+            conn.close()
+            return
 
     finally:
         conn.close()
